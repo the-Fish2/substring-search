@@ -2081,8 +2081,10 @@ fetch('words_dictionary.json')
     })
     .catch(error => {
         console.error('Error loading dictionary:', error);
+        dictionary = {"sightly": 1}
         alert('Error loading word dictionary. Please make sure words_dictionary.json is in the same folder.');
     });
+
 
 // Display today's letters
 const currentLetters = getTodayLetters();
@@ -2094,6 +2096,9 @@ const input = document.getElementById('wordInput');
 const errorMessage = document.getElementById('errorMessage');
 const shortestResult = document.getElementById('shortestResult');
 const longestResult = document.getElementById('longestResult');
+const shareBtn = document.getElementById('shareBtn');
+const shareMessage = document.getElementById('shareMessage');
+
 
 form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -2127,6 +2132,56 @@ form.addEventListener('submit', (e) => {
     
     // Clear input
     input.value = '';
+});
+
+function getFormattedDate() {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${month}/${day}/${year}`;
+}
+
+shareBtn.addEventListener('click', () => {
+    if (!shortestWord && !longestWord) {
+        return;
+    }
+    
+    const shortestLength = shortestWord ? shortestWord.length : 'N/A';
+    const longestLength = longestWord ? longestWord.length : 'N/A';
+    const url = window.location.href.split('?')[0]; // Remove any query parameters
+    const date = getFormattedDate();
+    
+    const shareText = `📚Substrings ${date}📚
+Longest word length: ${longestLength}
+Shortest word length: ${shortestLength}
+Can you beat me, the amazing fabulous walking dictionary? 🤔🧐🤓
+Play at ${url}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(shareText).then(() => {
+        shareMessage.textContent = 'Copied to clipboard!';
+        setTimeout(() => {
+            shareMessage.textContent = '';
+        }, 3000);
+    }).catch(err => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = shareText;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            shareMessage.textContent = 'Copied to clipboard!';
+            setTimeout(() => {
+                shareMessage.textContent = '';
+            }, 3000);
+        } catch (err) {
+            shareMessage.textContent = 'Could not copy. Please copy manually.';
+            console.error('Copy failed:', err);
+        }
+        document.body.removeChild(textArea);
+    });
 });
 
 function containsAllLetters(word, letters) {
@@ -2163,5 +2218,9 @@ function updateResults(word) {
     if (!longestWord || word.length > longestWord.length) {
         longestWord = word;
         longestResult.innerHTML = `LONGEST WORD FOUND: <span class="word-highlight">${word.toUpperCase()}</span> (${word.length} letters)`;
+    }
+
+    if (shortestWord || longestWord) {
+        shareBtn.style.display = 'inline-block';
     }
 }
