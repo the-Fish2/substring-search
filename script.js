@@ -2063,7 +2063,7 @@ const letterSets = [
 function getTodayLetters() {
     const today = new Date();
     const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
-    const index = dayOfYear % letterSets.length + 1;
+    const index = (dayOfYear-63) % letterSets.length;
     return letterSets[index];
 }
 
