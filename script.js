@@ -1,5 +1,11 @@
 // Array of letter combinations
-const letterSets = ['aeo', 'bte', 'ync', 'cle', 'tre', 'art', 'obo'];
+const letterSets = ['aeo', 
+                    'bte', 
+                    'kpa', 
+                    'psa', 
+                    'sms', 
+                    'oue', 
+                    'pne'];
 
 // Get today's letter set based on day mod 7
 function getTodayLetters() {
