@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Substring Search</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">SUBSTRING SEARCH</h1>
+        
+        <p class="subtitle">
+            find a word you can think of that contains the following letters 
+            (you can try to optimize for shortest or longest)
+        </p>
+        
+        <div class="letters-display" id="lettersDisplay"></div>
+        
+        <form id="wordForm">
+            <input 
+                type="text" 
+                id="wordInput" 
+                class="word-input" 
+                placeholder="enter word..."
+                autocomplete="off"
+            >
+            <button type="submit" class="submit-btn">Submit</button>
+        </form>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="results">
+            <div class="result-item" id="shortestResult"></div>
+            <div class="result-item" id="longestResult"></div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

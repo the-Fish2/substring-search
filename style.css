@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Bubblegum+Sans&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Bubblegum Sans', cursive;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.container {
+    background: white;
+    border-radius: 30px;
+    padding: 40px;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+
+.title {
+    font-size: 3rem;
+    color: #667eea;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.subtitle {
+    font-size: 1.1rem;
+    color: #555;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+.letters-display {
+    font-size: 5rem;
+    font-weight: bold;
+    color: #764ba2;
+    margin: 30px 0;
+    letter-spacing: 20px;
+    text-transform: uppercase;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.2);
+}
+
+#wordForm {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
+.word-input {
+    font-family: 'Bubblegum Sans', cursive;
+    padding: 15px 20px;
+    font-size: 1.2rem;
+    border: 3px solid #667eea;
+    border-radius: 15px;
+    outline: none;
+    transition: all 0.3s ease;
+    flex: 1;
+    max-width: 300px;
+}
+
+.word-input:focus {
+    border-color: #764ba2;
+    box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+}
+
+.word-input.shake {
+    animation: shake 0.5s;
+    border-color: #ff6b6b;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+    20%, 40%, 60%, 80% { transform: translateX(10px); }
+}
+
+.submit-btn {
+    font-family: 'Bubblegum Sans', cursive;
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.submit-btn:active {
+    transform: translateY(0);
+}
+
+.error-message {
+    color: #ff6b6b;
+    font-size: 1.1rem;
+    min-height: 30px;
+    margin-bottom: 10px;
+}
+
+.results {
+    margin-top: 30px;
+}
+
+.result-item {
+    font-size: 1.3rem;
+    color: #333;
+    margin: 15px 0;
+    padding: 15px;
+    background: linear-gradient(135deg, #f6f8ff 0%, #f0f4ff 100%);
+    border-radius: 15px;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-item:empty {
+    display: none;
+}
+
+.word-highlight {
+    color: #667eea;
+    font-weight: bold;
+    margin: 0 5px;
+}
+
+@media (max-width: 600px) {
+    .title {
+        font-size: 2rem;
+    }
+    
+    .letters-display {
+        font-size: 3.5rem;
+        letter-spacing: 10px;
+    }
+    
+    #wordForm {
+        flex-direction: column;
+    }
+    
+    .word-input {
+        max-width: 100%;
+    }
+}
