@@ -2153,8 +2153,8 @@ shareBtn.addEventListener('click', () => {
     const date = getFormattedDate();
     
     const shareText = `📚Substrings ${date}📚
-Longest word length: ${longestLength}
 Shortest word length: ${shortestLength}
+Longest word length: ${longestLength}
 Can you beat me, the amazing fabulous walking dictionary? 🤔🧐🤓
 Play at ${url}`;
     
