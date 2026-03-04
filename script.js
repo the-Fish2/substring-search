@@ -2081,7 +2081,7 @@ fetch('words_dictionary.json')
     })
     .catch(error => {
         console.error('Error loading dictionary:', error);
-        dictionary = {"sightly": 1}
+        dictionary = {"sightly": 1, "hotel": 1}
         alert('Error loading word dictionary. Please make sure words_dictionary.json is in the same folder.');
     });
 
@@ -2122,7 +2122,7 @@ form.addEventListener('submit', (e) => {
     
     // Check if word contains all three letters
     if (!containsAllLetters(word, currentLetters)) {
-        showError(`word must contain all letters: ${currentLetters.toUpperCase()}`);
+        showError(`word must contain all letters consecutively: ${currentLetters.toUpperCase()}`);
         shakeInput();
         return;
     }
@@ -2185,12 +2185,10 @@ Play at ${url}`;
 });
 
 function containsAllLetters(word, letters) {
-    for (let letter of letters) {
-        if (!word.includes(letter)) {
-            return false;
-        }
+    if (word.includes(letters)) {
+        return true;
     }
-    return true;
+    return false;
 }
 
 function showError(message) {
