@@ -2062,15 +2062,30 @@ const letterSets = [
 // Get today's letter set based on day mod 7
 function getTodayLetters() {
     const today = new Date();
-    const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
-    const index = (dayOfYear-63) % letterSets.length;
+    const epoch = new Date(2025, 0, 1); // Jan 1, 2025
+    const daysSinceEpoch = Math.floor((today - epoch) / 1000 / 60 / 60 / 24);
+    const index = (daysSinceEpoch - 427) % letterSets.length;
     return letterSets[index];
 }
+
+// Constants
+const MIN_WORD_FREQUENCY = 1;
+const HINT_THRESHOLDS = [0.25, 0.50, 0.75];
 
 // Load dictionary
 let dictionary = {};
 let shortestWord = null;
 let longestWord = null;
+let shownShortestMsg = false;
+let shownLongestMsg = false;
+let realWords = [];
+let bonusWords = [];
+let foundRealWords = new Set();
+let foundBonusWords = new Set();
+let allValidWords = [];
+let debugVisible = false;
+let definitionCache = {};
+let sortByLength = true; // true = by length, false = alphabetical
 
 // Load the dictionary file
 fetch('words_dictionary.json')
@@ -2078,6 +2093,11 @@ fetch('words_dictionary.json')
     .then(data => {
         dictionary = data;
         console.log('Dictionary loaded successfully');
+        allValidWords = Object.keys(dictionary).filter(word => containsAllLetters(word, currentLetters));
+        realWords = allValidWords.filter(w => dictionary[w] >= MIN_WORD_FREQUENCY).sort((a, b) => a.length - b.length || a.localeCompare(b));
+        bonusWords = allValidWords.filter(w => dictionary[w] < MIN_WORD_FREQUENCY);
+        updateProgressBar();
+        updateWordList();
     })
     .catch(error => {
         console.error('Error loading dictionary:', error);
@@ -2094,19 +2114,27 @@ document.getElementById('lettersDisplay').textContent = currentLetters;
 const form = document.getElementById('wordForm');
 const input = document.getElementById('wordInput');
 const errorMessage = document.getElementById('errorMessage');
-const shortestResult = document.getElementById('shortestResult');
-const longestResult = document.getElementById('longestResult');
 const shareBtn = document.getElementById('shareBtn');
 const shareMessage = document.getElementById('shareMessage');
+const debugBtn = document.getElementById('debugBtn');
 
+// Keep input focused on desktop
+if (!('ontouchstart' in window)) {
+    document.addEventListener('click', (e) => {
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+            input.focus();
+        }
+    });
+    input.focus();
+}
 
 form.addEventListener('submit', (e) => {
     e.preventDefault();
     
     const word = input.value.trim().toLowerCase();
     
-    // Clear error message
-    errorMessage.textContent = '';
+    // Clear previous message
+    clearMessage();
     
     // Check if word is empty
     if (!word) {
@@ -2122,14 +2150,22 @@ form.addEventListener('submit', (e) => {
     
     // Check if word contains all three letters
     if (!containsAllLetters(word, currentLetters)) {
-        showError(`word must contain all letters consecutively: ${currentLetters.toUpperCase()}`);
+        showError(`Word must contain '${currentLetters.toUpperCase()}' consecutively`);
         shakeInput();
         return;
     }
-    
+
+    // Check for duplicates
+    if (foundRealWords.has(word) || foundBonusWords.has(word)) {
+        showError("already found!");
+        shakeInput();
+        return;
+    }
+
     // Valid word! Update results
     updateResults(word);
-    
+    fetchDefinition(word);
+
     // Clear input
     input.value = '';
 });
@@ -2142,19 +2178,34 @@ function getFormattedDate() {
     return `${month}/${day}/${year}`;
 }
 
+const RATING_LABELS = ['⭐', '⭐⭐', '⭐⭐⭐', '🌟'];
+
+function getRating() {
+    if (realWords.length === 0) return 0;
+    const pct = foundRealWords.size / realWords.length;
+    if (pct >= 1) return 3; // Gold Star (Perfect)
+    if (pct >= 0.75) return 2; // 3 stars
+    if (pct >= 0.50) return 1; // 2 stars
+    if (pct >= 0.25) return 0; // 1 star
+    return -1; // no rating yet
+}
+
 shareBtn.addEventListener('click', () => {
     if (!shortestWord && !longestWord) {
         return;
     }
-    
+
     const shortestLength = shortestWord ? shortestWord.length : 'N/A';
     const longestLength = longestWord ? longestWord.length : 'N/A';
-    const url = window.location.href.split('?')[0]; // Remove any query parameters
+    const url = window.location.href.split('?')[0];
     const date = getFormattedDate();
-    
+    const rating = getRating();
+    const ratingText = rating >= 0 ? RATING_LABELS[rating] : '';
+    const bonusText = foundBonusWords.size > 0 ? `Bonus words: ${foundBonusWords.size}\n` : '';
+
     const shareText = `📚Substrings ${date}📚
-Shortest word length: ${shortestLength}
-Longest word length: ${longestLength}
+${foundRealWords.size}/${realWords.length} words found ${ratingText}
+${bonusText}Shortest: ${shortestLength} | Longest: ${longestLength}
 Can you beat me, the amazing fabulous walking dictionary? 🤔🧐🤓
 Play at ${url}`;
     
@@ -2184,6 +2235,130 @@ Play at ${url}`;
     });
 });
 
+// Definition fetching
+async function fetchDefinition(word) {
+    if (definitionCache[word]) return definitionCache[word];
+    try {
+        const res = await fetch(`https://freedictionaryapi.com/api/v1/entries/en/${encodeURIComponent(word)}`);
+        if (!res.ok) {
+            definitionCache[word] = null;
+            return null;
+        }
+        const data = await res.json();
+        const entries = data.entries || [];
+        const pronunc = entries[0]?.pronunciations?.find(p => p.text);
+        const phonetic = pronunc?.text || '';
+        const meanings = [];
+        for (const entry of entries) {
+            if (meanings.length >= 2) break;
+            for (const sense of (entry.senses || [])) {
+                if (meanings.length >= 2) break;
+                if (sense.definition) {
+                    meanings.push({
+                        partOfSpeech: entry.partOfSpeech || '',
+                        definition: sense.definition
+                    });
+                }
+            }
+        }
+        if (meanings.length === 0) {
+            definitionCache[word] = null;
+            return null;
+        }
+        definitionCache[word] = { phonetic, meanings };
+        return definitionCache[word];
+    } catch {
+        definitionCache[word] = null;
+        return null;
+    }
+}
+
+// Tooltip
+const tooltip = document.getElementById('definitionTooltip');
+let tooltipTimeout = null;
+
+function showTooltip(el, word) {
+    clearTimeout(tooltipTimeout);
+    const def = definitionCache[word];
+    const isHint = el.dataset.hint === 'true';
+    let html = '';
+    if (isHint) {
+        const subIdx = word.indexOf(currentLetters);
+        const masked = Array.from(word).map((ch, i) => {
+            if (i === 0) return ch.toUpperCase();
+            if (i >= subIdx && i < subIdx + currentLetters.length) return ch.toUpperCase();
+            return '_';
+        }).join('');
+        html += `<div class="def-word">${masked} (${word.length})</div>`;
+    } else {
+        html += `<div class="def-word">${word.toUpperCase()}</div>`;
+    }
+    if (def === undefined) {
+        html += '<div class="def-loading">Loading...</div>';
+    } else if (def === null) {
+        html += '<div class="def-error">No dictionary entry available</div>';
+    } else {
+        if (!isHint && def.phonetic) html += `<div class="def-phonetic">${def.phonetic}</div>`;
+        for (const m of def.meanings) {
+            html += `<div class="def-pos">${m.partOfSpeech}</div>`;
+            html += `<div class="def-meaning">${m.definition}</div>`;
+        }
+    }
+    tooltip.innerHTML = html;
+    tooltip.classList.add('visible');
+
+    const rect = el.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth;
+    let left = rect.left + rect.width / 2 - tooltipWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tooltipWidth - 8));
+    let top = rect.top - 8 - tooltip.offsetHeight;
+    if (top < 8) top = rect.bottom + 8;
+    tooltip.style.top = top + 'px';
+    tooltip.style.left = left + 'px';
+}
+
+function hideTooltip() {
+    tooltipTimeout = setTimeout(() => {
+        tooltip.classList.remove('visible');
+    }, 100);
+}
+
+function hideTooltipNow() {
+    clearTimeout(tooltipTimeout);
+    tooltip.classList.remove('visible');
+}
+
+function dismissTooltipOnOutsideTap(e) {
+    if (!tooltip.contains(e.target) && !e.target.closest('[data-word]')) {
+        hideTooltipNow();
+        document.removeEventListener('touchstart', dismissTooltipOnOutsideTap);
+        document.removeEventListener('scroll', dismissTooltipOnScroll, true);
+    }
+}
+
+function dismissTooltipOnScroll() {
+    hideTooltipNow();
+    document.removeEventListener('touchstart', dismissTooltipOnOutsideTap);
+    document.removeEventListener('scroll', dismissTooltipOnScroll, true);
+}
+
+function attachTooltipListeners() {
+    document.querySelectorAll('[data-word]').forEach(el => {
+        el.addEventListener('mouseenter', () => showTooltip(el, el.dataset.word));
+        el.addEventListener('mouseleave', hideTooltip);
+        el.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            showTooltip(el, el.dataset.word);
+            document.removeEventListener('touchstart', dismissTooltipOnOutsideTap);
+            document.removeEventListener('scroll', dismissTooltipOnScroll, true);
+            setTimeout(() => {
+                document.addEventListener('touchstart', dismissTooltipOnOutsideTap);
+                document.addEventListener('scroll', dismissTooltipOnScroll, true);
+            }, 10);
+        });
+    });
+}
+
 function containsAllLetters(word, letters) {
     if (word.includes(letters)) {
         return true;
@@ -2191,34 +2366,280 @@ function containsAllLetters(word, letters) {
     return false;
 }
 
+function clearMessage() {
+    errorMessage.textContent = '';
+    errorMessage.className = 'error-message';
+}
+
 function showError(message) {
     errorMessage.textContent = message;
-    setTimeout(() => {
-        errorMessage.textContent = '';
-    }, 3000);
+    errorMessage.className = 'error-message';
+}
+
+function showGoldMessage(message) {
+    errorMessage.textContent = message;
+    errorMessage.className = 'error-message gold-message';
 }
 
 function shakeInput() {
     input.classList.add('shake');
+    input.value = '';
     setTimeout(() => {
         input.classList.remove('shake');
     }, 500);
 }
 
 function updateResults(word) {
-    // Update shortest word
-    if (!shortestWord || word.length < shortestWord.length) {
-        shortestWord = word;
-        shortestResult.innerHTML = `SHORTEST WORD FOUND: <span class="word-highlight">${word.toUpperCase()}</span> (${word.length} letters)`;
+    // Categorize the word
+    if (dictionary[word] >= MIN_WORD_FREQUENCY) {
+        foundRealWords.add(word);
+    } else {
+        foundBonusWords.add(word);
     }
-    
-    // Update longest word
-    if (!longestWord || word.length > longestWord.length) {
-        longestWord = word;
-        longestResult.innerHTML = `LONGEST WORD FOUND: <span class="word-highlight">${word.toUpperCase()}</span> (${word.length} letters)`;
+
+    // Determine absolute shortest/longest from real words only
+    const absShortestLen = realWords.length > 0 ? realWords[0].length : 0;
+    const absLongestLen = realWords.length > 0 ? realWords[realWords.length - 1].length : 0;
+
+    // Update shortest/longest tracking
+    if (!shortestWord || word.length < shortestWord.length) shortestWord = word;
+    if (!longestWord || word.length > longestWord.length) longestWord = word;
+
+    // Special messages
+    const isAbsShortest = !shownShortestMsg && word.length === absShortestLen;
+    const isAbsLongest = !shownLongestMsg && word.length === absLongestLen;
+    if (dictionary[word] < MIN_WORD_FREQUENCY) {
+        showGoldMessage('Bonus word found!');
+    } else if (isAbsShortest && isAbsLongest) {
+        showGoldMessage('Shortest AND longest word found!');
+        shownShortestMsg = true;
+        shownLongestMsg = true;
+    } else if (isAbsShortest) {
+        showGoldMessage('Shortest possible word found!');
+        shownShortestMsg = true;
+    } else if (isAbsLongest) {
+        showGoldMessage('Longest possible word found!');
+        shownLongestMsg = true;
     }
 
     if (shortestWord || longestWord) {
         shareBtn.style.display = 'inline-block';
     }
+
+    updateProgressBar();
+    updateWordList();
+
+    // Celebrate when all real words found
+    if (realWords.length > 0 && foundRealWords.size === realWords.length) {
+        celebrateConfetti();
+    }
+}
+
+function celebrateConfetti() {
+    const duration = 3000;
+    const end = Date.now() + duration;
+    (function frame() {
+        confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 } });
+        confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 } });
+        if (Date.now() < end) requestAnimationFrame(frame);
+    })();
+}
+
+function getCurrentHintLevel() {
+    if (realWords.length === 0) return 0;
+    const pct = foundRealWords.size / realWords.length;
+    let level = 0;
+    for (const threshold of HINT_THRESHOLDS) {
+        if (pct >= threshold) level++;
+    }
+    return level;
+}
+
+function maskWord(word, hintLevel) {
+    if (hintLevel === 0) return null;
+    const subIdx = word.indexOf(currentLetters);
+    if (hintLevel >= 3) {
+        // Show first letter + substring position + hoverable definition
+        const masked = Array.from(word).map((ch, i) => {
+            if (i === 0) return ch.toUpperCase();
+            if (i >= subIdx && i < subIdx + currentLetters.length) return ch.toUpperCase();
+            return '_';
+        }).join('');
+        return `<span class="hint-item" data-key="${word}" data-word="${word}" data-hint="true">${masked} (${word.length})</span>`;
+    }
+    if (hintLevel >= 2) {
+        // Show first letter + substring position
+        const masked = Array.from(word).map((ch, i) => {
+            if (i === 0) return ch.toUpperCase();
+            if (i >= subIdx && i < subIdx + currentLetters.length) return ch.toUpperCase();
+            return '_';
+        }).join('');
+        return `<span class="hint-item" data-key="${word}">${masked} (${word.length})</span>`;
+    }
+    // Level 1: first letter only
+    return `<span class="hint-item" data-key="${word}">${word[0].toUpperCase()}${'_'.repeat(word.length - 1)} (${word.length})</span>`;
+}
+
+function updateWordList() {
+    const wordListDiv = document.getElementById('wordList');
+    const hintLevel = getCurrentHintLevel();
+    const totalFound = foundRealWords.size + foundBonusWords.size;
+
+    // FLIP: snapshot old positions
+    const oldPositions = {};
+    wordListDiv.querySelectorAll('[data-key]').forEach(el => {
+        const rect = el.getBoundingClientRect();
+        oldPositions[el.dataset.key] = { left: rect.left, top: rect.top };
+    });
+
+    // Determine absolute shortest/longest lengths
+    const allSorted = [...allValidWords].sort((a, b) => a.length - b.length);
+    const absShortestLen = allSorted.length > 0 ? allSorted[0].length : 0;
+    const absLongestLen = allSorted.length > 0 ? allSorted[allSorted.length - 1].length : 0;
+
+    // Sort real words based on current toggle
+    const sortedRealWords = sortByLength
+        ? [...realWords].sort((a, b) => a.length - b.length || a.localeCompare(b))
+        : [...realWords].sort((a, b) => a.localeCompare(b));
+
+    // Build merged real words list (found + hints)
+    let realWordsHtml = '';
+    for (const word of sortedRealWords) {
+        if (foundRealWords.has(word)) {
+            const isGold = word.length === absShortestLen || word.length === absLongestLen;
+            const cls = isGold ? 'word-item word-gold' : 'word-item';
+            realWordsHtml += `<span class="${cls}" data-key="${word}" data-word="${word}">${word.toUpperCase()} (${word.length})</span>`;
+        } else {
+            const hint = maskWord(word, hintLevel);
+            if (hint) realWordsHtml += hint;
+        }
+    }
+
+    // Bonus words section
+    let bonusHtml = '';
+    if (foundBonusWords.size > 0) {
+        const sortedBonus = sortByLength
+            ? [...foundBonusWords].sort((a, b) => a.length - b.length || a.localeCompare(b))
+            : [...foundBonusWords].sort((a, b) => a.localeCompare(b));
+        bonusHtml = '<div class="word-list-title" style="margin-top:15px;">BONUS WORDS</div><div class="word-list-items">' +
+            sortedBonus.map(w => {
+                return `<span class="bonus-item" data-key="${w}" data-word="${w}">${w.toUpperCase()} (${w.length})</span>`;
+            }).join('') +
+            '</div>';
+    }
+
+    // Debug section
+    let debugHtml = '';
+    if (debugVisible) {
+        const debugSorted = [...allValidWords].sort((a, b) => (dictionary[b] || 0) - (dictionary[a] || 0));
+        debugHtml = '<div class="word-list-title" style="margin-top:15px;">DEBUG — ALL VALID WORDS (' + debugSorted.length + ')</div><div class="word-list-items">' +
+            debugSorted.map(w => {
+                const freq = dictionary[w] || 0;
+                return `<span class="debug-item">${w.toUpperCase()} (${w.length}) ⚡${freq}</span>`;
+            }).join('') +
+            '</div>';
+    }
+
+    const sortLabel = sortByLength ? 'Sort A→Z' : 'Sort by Length';
+    wordListDiv.innerHTML = `<div class="word-list-header"><span class="word-list-title">WORDS</span><button class="sort-toggle-btn" id="sortToggle">${sortLabel}</button></div><div class="word-list-items">${realWordsHtml}</div>${bonusHtml}${debugHtml}`;
+    document.getElementById('sortToggle').addEventListener('click', () => {
+        sortByLength = !sortByLength;
+        updateWordList();
+    });
+    attachTooltipListeners();
+
+    // FLIP: animate items to new positions
+    const flipEls = [];
+    const newEls = [];
+    wordListDiv.querySelectorAll('[data-key]').forEach(el => {
+        const key = el.dataset.key;
+        const newRect = el.getBoundingClientRect();
+        if (oldPositions[key]) {
+            const dx = oldPositions[key].left - newRect.left;
+            const dy = oldPositions[key].top - newRect.top;
+            if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+                el.style.transform = `translate(${dx}px, ${dy}px)`;
+                flipEls.push(el);
+            }
+        } else {
+            el.style.opacity = '0';
+            el.style.transform = 'scale(0.85)';
+            newEls.push(el);
+        }
+    });
+    requestAnimationFrame(() => {
+        for (const el of flipEls) {
+            el.style.transition = 'transform 0.3s ease';
+            el.style.transform = '';
+        }
+        for (const el of newEls) {
+            el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            el.style.opacity = '1';
+            el.style.transform = 'scale(1)';
+        }
+        const cleanup = () => {
+            for (const el of [...flipEls, ...newEls]) {
+                el.style.transition = '';
+                el.style.transform = '';
+                el.style.opacity = '';
+            }
+        };
+        setTimeout(cleanup, 350);
+    });
+
+    // Pre-fetch definitions for unfound words when 1 away from level 3 threshold, or already at level 3
+    const wordsNeededForLevel3 = Math.ceil(HINT_THRESHOLDS[2] * realWords.length) - foundRealWords.size;
+    if (realWords.length > 0 && wordsNeededForLevel3 <= 1) {
+        for (const word of realWords) {
+            if (!foundRealWords.has(word) && definitionCache[word] === undefined) {
+                fetchDefinition(word);
+            }
+        }
+    }
+}
+
+function updateProgressBar() {
+    const container = document.getElementById('progressContainer');
+    const fill = document.getElementById('progressFill');
+    const markers = document.getElementById('hintMarkers');
+    const currentLabel = document.getElementById('progressCurrent');
+    const totalLabel = document.getElementById('progressTotal');
+
+    if (realWords.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    const pct = (foundRealWords.size / realWords.length) * 100;
+    fill.style.width = pct + '%';
+
+    const pct100 = (foundRealWords.size / realWords.length);
+    const thresholdIcons = [
+        '★',
+        '<span class="stars-2">★★</span>',
+        '<span class="stars-3"><span class="stars-3-top">★</span><span class="stars-3-bottom">★★</span></span>'
+    ];
+    markers.innerHTML = HINT_THRESHOLDS.map((t, i) => {
+        const reached = pct100 >= t;
+        const markerLine = reached ? '' : `<div class="hint-marker" style="left:${t * 100}%"></div>`;
+        return markerLine +
+            `<div class="threshold-icon${reached ? ' reached' : ''}" style="left:${t * 100}%">${thresholdIcons[i]}</div>`;
+    }).join('') +
+        `<div class="threshold-icon gold${pct100 >= 1 ? ' reached' : ''}" style="left:100%">★</div>`;
+
+    currentLabel.textContent = foundRealWords.size;
+    totalLabel.textContent = realWords.length;
+    totalLabel.style.visibility = pct > 95 ? 'hidden' : 'visible';
+}
+
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    debugBtn.style.display = '';
+    debugBtn.addEventListener('click', () => {
+        debugVisible = !debugVisible;
+        debugBtn.textContent = debugVisible ? 'Hide debug' : 'Debug';
+        updateWordList();
+    });
+} else {
+    debugBtn.style.display = 'none';
 }

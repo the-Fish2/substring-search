@@ -3,19 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Substring Search</title>
+    <title>conta in me nt</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1 class="title">SUBSTRING SEARCH</h1>
+        <h1 class="title"> conta  in  me  nt </h1>
         
         <p class="subtitle">
-            find a word you can think of that contains the following three letters consecutively! you can optimize for longest - shortest
+            find words that contain the following three letters consecutively! search for the shortest and longest words 
         </p>
         
         <div class="letters-display" id="lettersDisplay"></div>
-        
+
+        <div id="progressContainer" class="progress-container" style="display:none;">
+            <div class="progress-bar">
+                <div class="progress-fill-clip">
+                    <div id="progressFill" class="progress-fill">
+                        <span id="progressCurrent" class="progress-count-inner">0</span>
+                    </div>
+                </div>
+                <div id="hintMarkers" class="hint-markers"></div>
+                <span id="progressTotal" class="progress-count-end">0</span>
+            </div>
+        </div>
+
         <form id="wordForm">
             <input 
                 type="text" 
@@ -24,22 +36,23 @@
                 placeholder="enter word..."
                 autocomplete="off"
             >
-            <button type="submit" class="submit-btn">Submit</button>
+            <button type="submit" class="submit-btn">submit</button>
         </form>
         
         <div class="error-message" id="errorMessage"></div>
         
         <div class="results">
-            <div class="result-item" id="shortestResult"></div>
-            <div class="result-item" id="longestResult"></div>
-            <button id="shareBtn" class="share-btn" style="display: none;">Share</button>
+            <div id="wordList"></div>
+            <!-- <button id="debugBtn" class="debug-btn">debug</button> -->
+            <button id="shareBtn" class="share-btn" style="display: none;">share</button>
             <div class="share-message" id="shareMessage"></div>
         </div>
 
-
-        <p> thanks raina, dillon, blake, jay!! also https://github.com/dwyl/english-words </p>
+        <p> thanks raina, dillon, blake, jay, arpit!! also https://github.com/dwyl/english-words </p>
     </div>
     
+    <div class="definition-tooltip" id="definitionTooltip"></div>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
